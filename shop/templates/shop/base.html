@@ -1,0 +1,27 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Fieldform — Good things for every day{% endblock %}</title>
+  <meta name="description" content="A private sample store of thoughtful everyday goods. Browse, build a bag, and try a sandbox checkout. No real orders or payments.">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <link rel="icon" type="image/svg+xml" href="{% static 'shop/images/favicon.svg' %}">
+  <link rel="stylesheet" href="{% static 'shop/css/store.css' %}">
+  <script src="{% static 'shop/js/store.js' %}" defer></script>
+</head>
+<body data-runtime="{% if preview %}preview{% else %}django{% endif %}" data-page="{{ page }}" data-checkout-mode="{{ checkout_mode }}">
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="prototype-bar"><span><i></i> Private prototype</span><span>Sample goods. Sandbox checkout. <span class="bar-extra">A little room to explore.</span></span></div>
+<header class="site-header wrap">
+  <a class="wordmark" href="/" aria-label="Fieldform home"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 26V6h20M4 16h15M14 26V6M4 26h20"/></svg>fieldform<span>®</span></a>
+  <nav aria-label="Main navigation"><a href="/shop/" {% if page == 'catalog' or page == 'product' %}aria-current="page"{% endif %}>Shop all</a><a href="/about/" {% if page == 'about' %}aria-current="page"{% endif %}>Our approach</a></nav>
+  <a class="bag-link" href="/cart/" aria-label="View your bag"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14l1 14H4L5 7Zm3 0V5a4 4 0 0 1 8 0v2"/></svg><span class="bag-word">Bag</span><span class="bag-count" data-cart-count>{{ bag.count }}</span></a>
+</header>
+<main id="main">{% block content %}{% endblock %}</main>
+<footer class="site-footer">
+  <div class="wrap footer-main"><div><a class="wordmark" href="/">fieldform<span>®</span></a><p>Good things, thoughtfully chosen.<br>Made for the everyday.</p></div><div class="footer-links"><a href="/shop/">The collection</a><a href="/about/">Our approach</a><a href="/shipping/">Shipping & returns</a><a href="/cart/">Your bag</a></div><div class="footer-note"><span class="tiny-label">A SMALL STORE, BY DESIGN</span><p>Fewer things.<br>More purpose.</p><span class="sample-note">All products and policies are illustrative.</span></div></div>
+  <div class="wrap footer-bottom"><span>© 2026 Fieldform · A sample store</span><span>{% if preview %}Interactive preview · bag saved in this browser{% else %}Private Django prototype{% endif %}<span class="footer-dot">•</span>No real transactions</span></div>
+</footer>
+<div class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+{{ catalog_data|json_script:"catalog-data" }}
+</body></html>

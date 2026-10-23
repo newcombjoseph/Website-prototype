@@ -1,0 +1,13 @@
+{$APP_HOST} {
+    # Caddy obtains a certificate only for an existing, authorized hostname.
+    # Django's owner password gate protects every page and asset.
+    reverse_proxy django:8000 {
+        header_up X-Forwarded-Proto {scheme}
+    }
+    header {
+        X-Robots-Tag "noindex, nofollow, noarchive"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "same-origin"
+        -Server
+    }
+}
