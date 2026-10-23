@@ -1,0 +1,112 @@
+WORK NEEDED FOR PRODUCTION
+Reviewed: October 23, 2026
+
+CURRENT STATUS
+
+The application is close to being deployable as a private demo, but needs
+additional backend work before accepting real orders.
+
+The existing hosted URL is a static interactive preview. It does not run the
+Django server. The repository contains the separate Django application and
+deployment configuration.
+
+Static-file configuration and baseline security settings are implemented.
+They still need verification on the chosen production host.
+
+STORE FEATURES REQUIRED BEFORE REAL SALES
+
+1. Real product catalog
+   Replace placeholder JSON products with real products, prices, descriptions,
+   images, and stock quantities.
+
+2. Durable orders
+   Add database models for orders, order items, payment status, and shipping
+   details. Preserve the prices and product information used for each order.
+
+3. Inventory
+   Add persistent stock tracking and protection against overselling.
+
+4. Production payments
+   Checkout currently supports simulated or Stripe test mode only.
+   Implement live mode explicitly after approval. Keep card entry on Stripe's
+   hosted checkout page.
+   Add signature-verified webhooks and protection against processing duplicate
+   events. Record payment notifications independently of the customer's return
+   to the website: closing the browser after payment must not lose an order.
+
+5. Fulfillment
+   Replace the demo confirmation with reliable paid-order processing.
+   Add a shipping workflow, cancellations, and refunds.
+
+6. Shipping and tax
+   Replace demo shipping rates and zero tax with the store's actual shipping
+   regions, rates, and applicable tax configuration.
+
+7. Store management
+   Add a protected interface for managing products, inventory, and orders.
+
+8. Customer communication
+   Configure transactional email for order confirmations and shipping updates.
+   Provide a working support contact.
+
+DEPLOYMENT REQUIREMENTS
+
+9. Python hosting and HTTPS
+   Choose and configure a Python host and HTTPS hostname.
+   Docker, Gunicorn, Caddy, and an AWS deployment guide are included, but no AWS
+   infrastructure has been provisioned.
+   Keep the site private unless public access is explicitly approved.
+
+10. Production environment configuration
+    Configure a unique random Django secret key, allowed hostname, trusted
+    HTTPS origin, and private-access credentials.
+    Keep secrets outside source control.
+    Keep DEBUG disabled and verify the reverse proxy's HTTPS configuration.
+
+11. Persistent storage and backups
+    Ensure orders and inventory survive container replacement.
+    Configure backups and test restoring them.
+
+12. Operations and maintenance
+    Configure error alerts, uptime monitoring, log rotation, dependency updates,
+    and a rollback procedure. Avoid logging credentials or payment secrets.
+
+13. Deployment verification
+    Run python manage.py check --deploy with the actual production settings.
+    Verify HTTPS redirects, secure cookies, allowed hosts, CSRF behavior,
+    private access, static assets, and proxy behavior on the deployed host.
+
+14. Real sandbox integration testing
+    The existing eight automated tests pass, but Stripe requests were mocked.
+    Test the deployed Django application using Stripe sandbox credentials.
+    Include payment failures, retries, duplicate webhook notifications,
+    abandoned checkout, refunds, and order/inventory updates.
+    Confirm that fulfillment does not depend on visiting the success page.
+
+15. Final store content
+    Replace placeholder policies with finalized shipping, returns, privacy,
+    and contact information appropriate to the actual store.
+
+RECOMMENDED IMPLEMENTATION ORDER
+
+- Deploy Django privately with real Stripe sandbox checkout.
+- Add durable orders, inventory, verified webhooks, and fulfillment.
+- Complete store content, operational controls, and deployment testing.
+- Enable live payments and public access only after explicit approval.
+
+No paid services, domain purchases, public access changes, or real transactions
+are authorized by this checklist.
+
+REFERENCES
+
+Repository deployment guide:
+deploy/AWS.md
+
+Repository validation notes:
+VALIDATION.md
+
+Django deployment checklist:
+https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
+
+Stripe Checkout fulfillment:
+https://docs.stripe.com/checkout/fulfillment
