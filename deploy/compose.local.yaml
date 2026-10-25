@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: bonnets
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in PowerShell first}
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-15432}:5432"
     volumes:
       - bonnet_postgres:/var/lib/postgresql/data
     healthcheck:

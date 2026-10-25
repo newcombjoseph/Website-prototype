@@ -1,47 +1,85 @@
 # Windows development setup
 
-Install Python 3.12, Git, and Docker Desktop (Linux containers). Start Docker Desktop. Open PowerShell in your existing project folder, pull the updated branch, then:
+Install Python 3.12, Git and Docker Desktop (Linux containers). Start Docker Desktop and wait for its engine to run. Use PowerShell in the folder containing `manage.py`.
+
+## Update an existing checkout
+
+```powershell
+git pull origin main
+```
+
+If Git refuses because you previously edited `deploy/compose.local.yaml` to fix the port, preserve that edit before pulling:
+
+```powershell
+git stash push -m "Save previous local PostgreSQL port configuration" -- deploy/compose.local.yaml
+git pull origin main
+```
+
+The new configuration defaults to port **15432**, so you do not need to reapply the old port edit. Other custom changes in that stash should be reviewed separately. No database volume is deleted by Git or this setup helper.
+
+## First setup
+
+If you do not already have `.venv`, create it once:
 
 ```powershell
 py -3.12 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-
-# Save the generated local DB password in a password manager; reuse the same
-# password for this Docker volume on subsequent runs. Do not regenerate it
-# when reconnecting to an existing database.
-$env:POSTGRES_PASSWORD = & .\.venv\Scripts\python.exe -c "import secrets; print(secrets.token_hex(24))"
-docker compose -f deploy/compose.local.yaml up -d --wait
-$env:DATABASE_URL = "postgresql://bonnets:$($env:POSTGRES_PASSWORD)@127.0.0.1:5432/bonnets"
-$env:DJANGO_SECRET_KEY = & .\.venv\Scripts\python.exe -c "import secrets; print(secrets.token_urlsafe(64))"
-$env:DJANGO_DEBUG = "true"
-$env:DJANGO_ALLOWED_HOSTS = "localhost,127.0.0.1"
-$env:PUBLIC_ORIGIN = "http://localhost:8000"
-$env:PRIVATE_ACCESS_REQUIRED = "false"
-$env:CHECKOUT_MODE = "simulated"
-
-.\.venv\Scripts\python.exe manage.py migrate
-.\.venv\Scripts\python.exe manage.py seed_store
-.\.venv\Scripts\python.exe manage.py seed_store --bonnets
-.\.venv\Scripts\python.exe manage.py setup_staff_roles
-.\.venv\Scripts\python.exe manage.py createsuperuser
-.\.venv\Scripts\python.exe manage.py enroll_admin YOUR_USERNAME
-.\.venv\Scripts\python.exe manage.py runserver
 ```
 
-Enrollment displays a secret setup URI only in your trusted terminal. Add its secret to an authenticator app manually, enter the code when prompted, and store the one-time recovery codes offline. Never share the URI, secret or codes in chat or screenshots. No account has a default password.
-
-Visit `http://localhost:8000` and `http://localhost:8000/admin/`. Stop Django with Ctrl+C. Stop PostgreSQL with `docker compose -f deploy/compose.local.yaml stop`. Keep the volume: it holds your data. Do not use `down -v` unless deliberately deleting that development data.
-
-Django does not load `.env` automatically. New PowerShell windows need the environment variables again, using the existing DB password. Use a stable, securely stored Django secret if you want sessions to survive restarts. This example generates an ephemeral development secret only.
-
-Run `python manage.py expire_reservations` periodically in development to release abandoned simulated checkouts (35 minutes). On Windows the complete command is `.\.venv\Scripts\python.exe manage.py expire_reservations`.
-
-## Tests
-
-Keep PostgreSQL running. Use a separate PowerShell window and set DATABASE_URL plus a temporary random DJANGO_SECRET_KEY as above, without the local HTTP development exports. Then run:
+Then install dependencies and create/initialize the database:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts/verify.py
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe scripts/local.py setup
 ```
 
-The DB test role needs permission to create a disposable test database. The local Compose role has it; the production application role should not. Tests create and destroy their own `test_` database and never use real Stripe credentials. SQLite remains available as a lightweight development fallback if DATABASE_URL is unset; it does not validate PostgreSQL locking or production readiness.
+If `POSTGRES_PASSWORD` is still set in your current PowerShell window, setup reuses it. Otherwise it asks for a password without displaying it. **If the database already exists, enter its original password.** For a new database, choose a strong password. Setup does not reset passwords or remove volumes.
+
+The helper:
+
+1. Starts the existing Compose PostgreSQL service, or creates it if absent, on loopback port **15432**. Use `setup --db-port 5432` only if your existing service deliberately uses port 5432; you can also set `POSTGRES_PORT` before first setup.
+2. Verifies a real authenticated database connection before saving settings.
+3. Creates/applies the tables for products, size/style variants, images, inventory history, orders, purchased items, order history, payment events, staff accounts and sessions.
+4. Adds the original eight placeholder products and six draft bonnet size/style combinations without overwriting existing records or inventory. Orders remain empty until you perform a test checkout; no invented customer orders are added.
+5. Configures the staff permission groups. It never creates default admin credentials or disables MFA.
+
+Private local settings (database password, selected port and a stable Django secret) are saved in `.local/development.json`. This file is excluded from Git and Docker builds. Treat it like a local `.env` file: it is not encrypted, should remain in your private Windows user folder, and must not contain production credentials. Do not upload or share it. The helper explicitly uses the local development database, even if your shell also has a production DATABASE_URL set.
+
+To create your admin account **only if you do not already have one**:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/local.py manage createsuperuser
+.\.venv\Scripts\python.exe scripts/local.py manage enroll_admin YOUR_USERNAME
+```
+
+Replace `YOUR_USERNAME` with the username you chose. Enrollment displays a private `otpauth://` setup URI in your trusted terminal. Add its secret to an authenticator app, enter the current code to confirm enrollment, and store the one-time recovery codes safely offline. Existing admin accounts and MFA enrollment are preserved.
+
+## Every time you want to run the website
+
+Start Docker Desktop, then run:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/local.py run
+```
+
+That command starts PostgreSQL if needed and loads your saved local settings. No repeated password exports are necessary. Visit `http://localhost:8000` and `http://localhost:8000/admin/`. Stop Django with Ctrl+C. If the website port is occupied, use `scripts/local.py run --port 8001` and open port 8001 instead.
+
+After pulling changes that add migrations, rerun `scripts/local.py setup`. It is repeatable and preserves existing products, stock, orders, staff accounts and the stable secret. It adds missing seed products but does not overwrite them. PostgreSQL data lives in the existing Compose volume. Do not use `docker compose down -v` unless you deliberately intend to delete that development data.
+
+## Troubleshooting
+
+- **Docker engine / named pipe error:** open Docker Desktop, select Linux containers and wait for the engine.
+- **Port blocked:** first setup defaults to 15432. For a new setup choose another free port with `setup --db-port 25432`. For already saved settings, deliberately change only `postgres_port` in your private `.local/development.json`, then rerun setup. The named volume and password stay the same.
+- **Wrong password:** use the database's original password. Editing `POSTGRES_PASSWORD` does not reset an initialized PostgreSQL volume. Correct the private saved password if you deliberately changed the database password elsewhere. Do not delete a volume to solve authentication errors.
+- **Forgotten private local settings:** recover the existing password from your password manager or original protected configuration. The helper cannot recover/reset an unknown database password automatically.
+- **Manual commands:** Django does not load `.env` or `.local/development.json` automatically. Use `scripts/local.py manage COMMAND` to apply the saved settings.
+
+## Tests and housekeeping
+
+```powershell
+.\.venv\Scripts\python.exe scripts/local.py test
+.\.venv\Scripts\python.exe scripts/local.py manage expire_reservations
+```
+
+Tests run deployment checks and the existing suites using a disposable PostgreSQL test database. The local Docker role can create test databases; the production application role should not have that permission. Test checkout never uses live Stripe credentials. Run `expire_reservations` periodically to release abandoned simulated reservations after 35 minutes.
+
+AWS production setup remains separate; see [AWS deployment](../deploy/AWS.md). This local helper neither provisions AWS nor creates a production database.

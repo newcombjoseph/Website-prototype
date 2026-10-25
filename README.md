@@ -4,32 +4,31 @@ Django storefront with PostgreSQL-backed products, size/style variants, inventor
 
 **Start here:** [Windows setup](docs/WINDOWS_SETUP.md) · [Store admin guide](docs/STORE_ADMIN.md) · [AWS deployment](deploy/AWS.md)
 
-## Development (macOS/Linux)
+## Local database setup (Windows, macOS and Linux)
 
-Use Python 3.12 and PostgreSQL 16+. Create a virtual environment, install `requirements.txt`, set `DATABASE_URL` and a random `DJANGO_SECRET_KEY` (50+ characters), and set these local-only settings:
+Use Python 3.12, Docker Desktop/Linux Docker and a virtual environment with `requirements.txt` installed. From the project folder, using that environment's Python:
 
 ```bash
-export DJANGO_DEBUG=true
-export DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
-export PUBLIC_ORIGIN=http://localhost:8000
-export PRIVATE_ACCESS_REQUIRED=false
-export CHECKOUT_MODE=simulated
-python manage.py migrate
-python manage.py seed_store
-python manage.py seed_store --bonnets
-python manage.py setup_staff_roles
-python manage.py createsuperuser
-python manage.py enroll_admin YOUR_USERNAME
-python manage.py runserver
+python scripts/local.py setup
+python scripts/local.py run
 ```
 
-Django does not automatically read `.env`. Docker Compose does. Uploads use local `media/` in development and private S3 in production. Database sessions replace the original cookie-only cart sessions; existing prototype carts need to be recreated after upgrade.
+First setup asks for the existing database password (or reuses POSTGRES_PASSWORD), starts PostgreSQL on loopback port **15432**, applies all migrations, seeds the sample catalog, and creates staff groups. Existing products, prices, stock, orders and accounts are preserved. It saves private development settings in ignored `.local/development.json`, so later startup needs just `python scripts/local.py run`. Do not commit or share that file. This helper creates a local development database, never AWS resources or a production database.
 
-Use individual staff accounts, strong passwords and authenticator codes. No default accounts or credentials are included. The trusted-console enrollment command prints a private authenticator setup URI and one-time recovery codes; do not share or log them.
+For a new admin account only:
+
+```bash
+python scripts/local.py manage createsuperuser
+python scripts/local.py manage enroll_admin YOUR_USERNAME
+```
+
+Use individual staff accounts, strong passwords and authenticator codes. No default accounts or credentials are included. Never share the private authenticator setup URI or recovery codes. Existing accounts/MFA are preserved by setup. See the [Windows guide](docs/WINDOWS_SETUP.md) for pulling updates after editing your local Compose port.
+
+Uploads use local `media/` in development and private S3 in production. Django does not load `.env` or `.local/development.json` on its own; use the helper's `manage` command or explicitly configure environment variables for manual commands.
 
 ## Verification
 
-In a fresh shell with DATABASE_URL and a temporary random secret, without HTTP-development overrides:
+Using the saved local settings, run `python scripts/local.py test`. For manual verification, use a fresh shell with DATABASE_URL and a temporary random secret, without HTTP-development overrides:
 
 ```bash
 python scripts/verify.py
