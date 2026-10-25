@@ -1,6 +1,6 @@
 # Fieldform — bonnet store management prototype
 
-Django storefront with PostgreSQL-backed products, size/style variants, inventory, test orders and order history, plus an MFA-protected staff admin at `/admin/`. Existing placeholder catalog styling is retained; sample healthcare bonnets are seeded as drafts for you to customize.
+Django storefront with PostgreSQL-backed products, size/style variants, inventory, test orders and order history, plus an MFA-protected staff admin at `/admin/`. The storefront uses a clean clinical palette, clear typography and eight illustrated sample scrub caps, each with Small/Medium/Large variants.
 
 **Start here:** [Windows setup](docs/WINDOWS_SETUP.md) · [Store admin guide](docs/STORE_ADMIN.md) · [AWS deployment](deploy/AWS.md)
 
@@ -13,7 +13,7 @@ python scripts/local.py setup
 python scripts/local.py run
 ```
 
-First setup asks for the existing database password (or reuses POSTGRES_PASSWORD), starts PostgreSQL on loopback port **15432**, applies all migrations, seeds the sample catalog, and creates staff groups. Existing products, prices, stock, orders and accounts are preserved. It saves private development settings in ignored `.local/development.json`, so later startup needs just `python scripts/local.py run`. Do not commit or share that file. This helper creates a local development database, never AWS resources or a production database.
+First setup asks for the existing database password (or reuses POSTGRES_PASSWORD), starts PostgreSQL on loopback port **15432**, applies all migrations, seeds eight sample scrub cap styles, and creates staff groups. Untouched household samples are unpublished; edited products and historical orders are preserved. Existing products, prices, stock, orders and accounts are preserved. It saves private development settings in ignored `.local/development.json`, so later startup needs just `python scripts/local.py run`. Do not commit or share that file. This helper creates a local development database, never AWS resources or a production database.
 
 For a new admin account only:
 
@@ -38,10 +38,10 @@ python -m pip check
 
 Verification collects static files, checks deployment settings, and runs browsing/cart, admin/MFA/permissions, uploads, order snapshots, webhook and inventory tests. PostgreSQL is required to exercise the concurrent last-unit test. SQLite is a lightweight fallback only and is rejected when `APP_ENV=production` deployment checks run.
 
-Optional `python scripts/export_preview.py` renders the original immutable sample collection into 16 static HTML pages after static collection. It is an illustrative browser-local preview, not the live store, admin, database or order system.
+Optional `python scripts/export_preview.py` renders the bundled scrub cap sample collection into 16 static HTML pages after static collection. It is an illustrative browser-local preview, not the live store, admin, database or order system.
 
 ## Current boundaries
 
-Checkout supports simulated and Stripe **test** modes only. Orders and inventory are durable, payment notifications are signature-verified and idempotent, and historical financial records are read-only in admin. Original prices, demo shipping ($6 below $75) and zero tax remain illustrative. Sample bonnet variants have zero stock until you add your real information. No patient/medical records are collected; this is a retail catalog for bonnets.
+Checkout supports simulated and Stripe **test** modes only. Orders and inventory are durable, payment notifications are signature-verified and idempotent, and historical financial records are read-only in admin. Sample prices, demo shipping ($6 below $75) and zero tax remain illustrative. Scrub cap samples have illustrative stock and specifications; replace them with real products before launch. The optional original bonnet-fitting drafts remain unpublished with zero stock. No patient/medical records are collected; this is a retail catalog for bonnets.
 
 No AWS resources have been provisioned. Actual RDS/S3/IAM/HTTPS deployment, backups and restore, real Stripe sandbox delivery, and business requirements must be verified before production launch. Live payments, refunds, transactional email and real tax/shipping are not enabled by this release.

@@ -22,3 +22,13 @@ The follow-up `scripts/local.py` helper was executed against the actual Compose 
 Two subsequent setup runs preserved an edited price and stock count, the order, line items, order events, stock movements, staff groups, and the exact saved local settings file. No database volumes were deleted and no passwords were reset. The helper's saved-settings startup returned expected storefront, product-option and MFA login content over HTTP.
 
 `python scripts/local.py test` passed **38 tests**, with no skips, including secret-file preservation, special-character database passwords, failed-authentication handling, and isolation from inherited production settings. `.local/development.json` is ignored by Git and excluded from Docker build context. The Python helper was exercised on the Linux cloud machine; native Windows Docker Desktop execution remains a user-side check.
+
+
+## Clinical scrub cap storefront refresh
+
+- Replaced the bundled household collection with eight illustrated scrub cap styles, each seeded with Small/Medium/Large inventory variants. Added original vector product artwork and hero artwork; no external asset requests are needed.
+- Updated the storefront to a white, navy, pale-blue and teal palette with sans-serif headings, clearer option controls, and scrub-cap-specific copy.
+- `python scripts/local.py test`: **41 tests passed**, including new checks for sample-catalog upgrades, preservation of edited product/stock data, and retention of historical order records when untouched old samples are unpublished.
+- Actual Chromium checks at 1440px desktop and 390px mobile widths passed: images loaded, no horizontal overflow, category/search filtering worked, all three size options were available, and adding the selected Medium cap produced the correct bag variant. No JavaScript errors occurred. Desktop/mobile screenshots were visually inspected.
+- The 16-page static export built successfully. A separate browser check added a cap, completed simulated checkout and confirmed the correct browser-only receipt and $34.00 sample total. Preview wording does not claim to save a database order.
+- Existing admin/MFA settings and database schema are unchanged. Users apply the sample-catalog update with `python scripts/local.py setup`; customized household examples remain owner-controlled and can be unpublished manually.

@@ -18,7 +18,8 @@ class BrowsingAndCartTests(TestCase):
     def setUp(self):
         self.client = Client(enforce_csrf_checks=True)
         from shop.models import Variant
-        self.ids = list(Variant.objects.order_by('pk').values_list('pk', flat=True))
+        samples = json.loads((Path(__file__).resolve().parents[1] / 'shop/products.json').read_text())
+        self.ids = [Variant.objects.get(product__slug=item['slug'], size='Small').pk for item in samples]
 
     def post(self, path, data=None):
         self.client.get('/shop/', secure=True)

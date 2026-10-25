@@ -43,4 +43,4 @@ The order history and inventory movements are also available as read-only record
 
 All orders are explicitly `simulated` or `stripe_test`. No live charges or actual shipping automation is enabled. The current shipping rule is still a demo ($6 below $75, otherwise free) and tax is still zero. Complete actual tax, shipping, refund, transactional email and store policy work before real sales.
 
-Sample bonnet variants are drafts with zero stock. Replace their details and upload actual product photographs before publishing. The original eight products remain placeholders and can be unpublished in the admin.
+The eight scrub cap styles are published samples with illustrative Small/Medium/Large stock and original vector illustrations. Replace their details, inventory and pictures with your actual catalog before launch. The optional original bonnet-fitting examples remain drafts with zero stock. Setup unpublishes untouched household samples, preserving edited records and every historical order; you can unpublish any retained examples yourself in the admin.

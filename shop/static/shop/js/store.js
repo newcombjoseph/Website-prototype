@@ -8,7 +8,7 @@
   function toast(message, bagLink = false) {
     const el = document.querySelector('.toast');
     el.replaceChildren(document.createTextNode(message));
-    if (bagLink) {const a = document.createElement('a'); a.href='/cart/'; a.textContent='View bag ↗'; el.append(a);}
+    if (bagLink) {const a = document.createElement('a'); a.href='/cart/'; a.textContent='View bag'; el.append(a);}
     el.classList.add('visible'); clearTimeout(toastTimer);
     toastTimer = setTimeout(() => el.classList.remove('visible'), 5500);
   }
@@ -34,7 +34,7 @@
           (card.dataset.name + ' ' + card.dataset.category.toLowerCase()).includes(search.value.toLowerCase().trim()));
         if (!card.hidden) visible++;
       }
-      document.querySelector('[data-result-count]').textContent = `${visible} ${visible === 1 ? 'everyday essential' : 'thoughtfully chosen essentials'}`;
+      document.querySelector('[data-result-count]').textContent = `${visible} ${visible === 1 ? 'scrub cap' : 'scrub caps'}`;
       document.querySelector('.empty-search').hidden = visible !== 0;
       cards.sort((a,b) => sort.value === 'price-low' ? Number(a.dataset.price)-Number(b.dataset.price) :
         sort.value === 'price-high' ? Number(b.dataset.price)-Number(a.dataset.price) :
@@ -75,7 +75,7 @@
     const target = document.getElementById('cart-content'); if (!target) return;
     const s = summary();
     if (!s.lines.length) {
-      target.innerHTML = '<div class="empty-state"><div class="empty-icon">✳</div><h2>A little room for good things.</h2><p>Your bag is empty. Find an everyday companion<br>in our small collection.</p><a class="button" href="/shop/">Explore the collection <span>↗</span></a></div>';
+      target.innerHTML = '<div class="empty-state"><div class="empty-icon">✳</div><h2>Find your fit.</h2><p>Your bag is empty. Explore scrub caps and choose a style<br>for your working day.</p><a class="button" href="/shop/">Explore scrub caps <span>↗</span></a></div>';
       return;
     }
     // All interpolated text below comes from the bundled, immutable sample catalog.
@@ -84,7 +84,7 @@
   function renderCheckout() {
     const target = document.getElementById('checkout-summary'); if(!target) return;
     const s = summary();
-    target.innerHTML = `<span class="eyebrow">YOUR EVERYDAY ESSENTIALS</span><h2>Ready when you are.</h2>${s.lines.map(({p,quantity,total})=>`<div><span>${p.name} × ${quantity}</span><span>${money(total)}</span></div>`).join('')}<div><span>Demo shipping</span><span>${shippingText(s)}</span></div><div class="summary-total"><strong>Demo total</strong><strong>${money(s.total)}</strong></div><p class="tax-note">USD · Demo tax $0.00 · No real charges.</p>${s.lines.length?'<form id="checkout-form"><button class="button" type="submit">Simulate checkout <span>↗</span></button></form>':'<p>Your bag is empty.</p><a class="button" href="/shop/">Explore the collection ↗</a>'}<a class="cancel-link" href="/checkout/cancel/">Cancel & return to bag</a><p class="secure-note">No real transactions. No card data on this store.</p>`;
+    target.innerHTML = `<span class="eyebrow">YOUR SCRUB CAPS</span><h2>Your order summary.</h2>${s.lines.map(({p,quantity,total})=>`<div><span>${p.name} × ${quantity}</span><span>${money(total)}</span></div>`).join('')}<div><span>Demo shipping</span><span>${shippingText(s)}</span></div><div class="summary-total"><strong>Demo total</strong><strong>${money(s.total)}</strong></div><p class="tax-note">USD · Demo tax $0.00 · No real charges.</p>${s.lines.length?'<form id="checkout-form"><button class="button" type="submit">Simulate checkout <span>↗</span></button></form>':'<p>Your bag is empty.</p><a class="button" href="/shop/">Explore scrub caps</a>'}<a class="cancel-link" href="/checkout/cancel/">Cancel & return to bag</a><p class="secure-note">No real transactions. No card data on this store.</p>`;
   }
   document.addEventListener('submit', event => {
     const form = event.target;

@@ -1,7 +1,9 @@
 import json
 from pathlib import Path
 from django.templatetags.static import static
-LEGACY_IMAGES = {p["slug"]: p["image"] for p in json.loads(Path(__file__).with_name("products.json").read_text())}
+SAMPLE_IMAGES = {item["slug"]: item["image"]
+                 for filename in ("legacy_samples.json", "products.json")
+                 for item in json.loads(Path(__file__).with_name(filename).read_text())}
 from .models import Product, Variant
 
 
@@ -15,8 +17,8 @@ def variant_data(variant):
     return {'id': variant.pk, 'slug': p.slug, 'name': p.name, 'category': p.category,
             'price': variant.price, 'price_display': money(variant.price), 'stock': variant.stock,
             'color': f'{variant.size} / {variant.style}', 'size': variant.size, 'style': variant.style,
-            'image_url': image.image.url if image else static('shop/images/' + LEGACY_IMAGES.get(p.slug, 'bonnet.svg')),
-            'image': LEGACY_IMAGES.get(p.slug, 'bonnet.svg'),
+            'image_url': image.image.url if image else static('shop/images/' + SAMPLE_IMAGES.get(p.slug, 'bonnet.svg')),
+            'image': SAMPLE_IMAGES.get(p.slug, 'bonnet.svg'),
             'image_alt': image.alt_text if image else p.name,
             **{key: getattr(p, key) for key in ['description', 'materials', 'dimensions', 'care', 'note', 'badge']}}
 

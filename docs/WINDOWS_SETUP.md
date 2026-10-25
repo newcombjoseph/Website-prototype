@@ -39,7 +39,7 @@ The helper:
 1. Starts the existing Compose PostgreSQL service, or creates it if absent, on loopback port **15432**. Use `setup --db-port 5432` only if your existing service deliberately uses port 5432; you can also set `POSTGRES_PORT` before first setup.
 2. Verifies a real authenticated database connection before saving settings.
 3. Creates/applies the tables for products, size/style variants, images, inventory history, orders, purchased items, order history, payment events, staff accounts and sessions.
-4. Adds the original eight placeholder products and six draft bonnet size/style combinations without overwriting existing records or inventory. Orders remain empty until you perform a test checkout; no invented customer orders are added.
+4. Adds eight sample scrub caps, each with Small/Medium/Large variants, plus the optional original draft bonnet-fitting examples. Untouched household samples are unpublished. Edited products and all stock/order records are preserved. Orders remain empty until you perform a test checkout; no invented customer orders are added.
 5. Configures the staff permission groups. It never creates default admin credentials or disables MFA.
 
 Private local settings (database password, selected port and a stable Django secret) are saved in `.local/development.json`. This file is excluded from Git and Docker builds. Treat it like a local `.env` file: it is not encrypted, should remain in your private Windows user folder, and must not contain production credentials. Do not upload or share it. The helper explicitly uses the local development database, even if your shell also has a production DATABASE_URL set.
@@ -63,7 +63,7 @@ Start Docker Desktop, then run:
 
 That command starts PostgreSQL if needed and loads your saved local settings. No repeated password exports are necessary. Visit `http://localhost:8000` and `http://localhost:8000/admin/`. Stop Django with Ctrl+C. If the website port is occupied, use `scripts/local.py run --port 8001` and open port 8001 instead.
 
-After pulling changes that add migrations, rerun `scripts/local.py setup`. It is repeatable and preserves existing products, stock, orders, staff accounts and the stable secret. It adds missing seed products but does not overwrite them. PostgreSQL data lives in the existing Compose volume. Do not use `docker compose down -v` unless you deliberately intend to delete that development data.
+After pulling changes that add migrations, rerun `scripts/local.py setup`. It is repeatable and preserves existing products, stock, orders, staff accounts and the stable secret. It adds missing sample caps and archives untouched household examples, while preserving edits to product details, prices and inventory. PostgreSQL data lives in the existing Compose volume. Do not use `docker compose down -v` unless you deliberately intend to delete that development data.
 
 ## Troubleshooting
 
@@ -83,3 +83,7 @@ After pulling changes that add migrations, rerun `scripts/local.py setup`. It is
 Tests run deployment checks and the existing suites using a disposable PostgreSQL test database. The local Docker role can create test databases; the production application role should not have that permission. Test checkout never uses live Stripe credentials. Run `expire_reservations` periodically to release abandoned simulated reservations after 35 minutes.
 
 AWS production setup remains separate; see [AWS deployment](../deploy/AWS.md). This local helper neither provisions AWS nor creates a production database.
+
+## Updating to the clinical scrub cap collection
+
+After pulling this update, stop the website and run `scripts/local.py setup`, then `scripts/local.py run` using your virtual environment's Python. Setup adds the new sample collection and unpublishes untouched household placeholders without deleting them. If an old sample has already been edited or its stock has changed, it stays under your control: unpublish it in the admin if you no longer want it in the storefront. Orders and their purchased-item snapshots are preserved. No new migrations or admin/MFA enrollment are required for this visual/catalog update.
