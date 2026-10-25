@@ -10,3 +10,5 @@ dist/
 node_modules/
 .sites-runtime/
 qa/
+
+media/

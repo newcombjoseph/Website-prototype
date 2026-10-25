@@ -1,24 +1,34 @@
-import secrets
 from django.conf import settings
 from django.core import signing
 from django.http import Http404, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import render, redirect
 from django.views.decorators.http import require_POST
-from .catalog import PRODUCTS, BY_SLUG, BY_ID, cart_summary
+from django.views.decorators.csrf import ensure_csrf_cookie
+from .catalog import PRODUCTS, BY_ID, cart_summary, product_cards, order_receipt
+from .models import Order
+from .services import reserve_order, release_order, mark_paid, handle_payment_event, StockError
+from django.views.decorators.csrf import csrf_exempt
+from django.db import transaction
+import logging
+logger = logging.getLogger(__name__)
 
 
 def home(request):
     return render(request, 'shop/home.html', {'products': PRODUCTS[:4], 'page': 'home'})
 
 
+@ensure_csrf_cookie
 def catalog(request):
-    return render(request, 'shop/catalog.html', {'products': PRODUCTS, 'page': 'catalog'})
+    cards = product_cards()
+    return render(request, 'shop/catalog.html', {'products': cards, 'categories': sorted({p['category'] for p in cards}), 'page': 'catalog'})
 
 
 def product(request, slug):
-    if slug not in BY_SLUG:
+    cards = product_cards()
+    selected = next((p for p in cards if p['slug'] == slug), None)
+    if selected is None:
         raise Http404
-    return render(request, 'shop/product.html', {'product': BY_SLUG[slug], 'products': [p for p in PRODUCTS if p['slug'] != slug][:3], 'page': 'product'})
+    return render(request, 'shop/product.html', {'product': selected, 'products': [p for p in cards if p['slug'] != slug][:3], 'page': 'product'})
 
 
 def cart(request):
@@ -55,6 +65,11 @@ def cart_add(request):
 
 @require_POST
 def cart_update(request):
+    if request.POST.get('quantity') == '0':
+        cart = request.session.get('cart', {})
+        cart.pop(request.POST.get('product_id', ''), None)
+        request.session['cart'] = cart
+        return redirect('cart')
     item = validated_item(request, allow_zero=True)
     if not item:
         return HttpResponseBadRequest('Invalid product or quantity.')
@@ -76,66 +91,111 @@ def checkout(request):
 
 @require_POST
 def checkout_start(request):
-    summary = cart_summary(request.session.get('cart', {}))
-    if not summary['lines']:
+    cart = request.session.get('cart', {})
+    if not cart:
         return redirect('cart')
-    nonce = secrets.token_urlsafe(24)
-    request.session['checkout_nonce'] = nonce
-    request.session['checkout_snapshot'] = request.session.get('cart', {}).copy()
-    if settings.CHECKOUT_MODE == 'simulated':
-        # This creates no order and makes no payment request. The reference is a demo receipt only.
-        token = signing.dumps({'nonce': nonce, 'amount': summary['total']}, salt='demo-checkout')
+    # Reuse the same immutable reservation on retries, rather than reserving twice.
+    order_id = request.session.get('checkout_order')
+    order = Order.objects.filter(pk=order_id, status=Order.Status.PENDING).first() if order_id else None
+    if order and (request.session.get('checkout_snapshot') != cart or order.mode != settings.CHECKOUT_MODE):
+        return render(request, 'shop/checkout.html', {'page': 'checkout', 'checkout_error': 'An earlier checkout is still pending. Finish or expire it before starting a different checkout.'}, status=409)
+    if not order:
+        try:
+            order = reserve_order(cart, settings.CHECKOUT_MODE)
+        except StockError as exc:
+            return render(request, 'shop/checkout.html', {'page': 'checkout', 'checkout_error': str(exc)}, status=409)
+        request.session['checkout_order'] = str(order.pk)
+        request.session['checkout_snapshot'] = cart.copy()
+        # Persist ownership before calling the external provider. Retrying the same
+        # session uses the same order and provider idempotency key after a timeout.
+        request.session.save()
+    if order.mode == 'simulated':
+        token = signing.dumps({'order': str(order.pk), 'session': request.session.session_key}, salt='demo-checkout')
         return redirect('/checkout/complete/?demo=' + token)
     import stripe
     client = stripe.StripeClient(settings.STRIPE_SECRET_KEY)
-    line_items = [{'price_data': {'currency': 'usd', 'unit_amount': x['product']['price'],
-                    'product_data': {'name': x['product']['name']}}, 'quantity': x['quantity']} for x in summary['lines']]
-    if summary['shipping']:
-        line_items.append({'price_data': {'currency': 'usd', 'unit_amount': summary['shipping'],
-                           'product_data': {'name': 'Demo shipping'}}, 'quantity': 1})
+    items = [{'price_data': {'currency': order.currency, 'unit_amount': item.unit_price,
+             'product_data': {'name': f'{item.product_name} / {item.size} / {item.style}'}}, 'quantity': item.quantity} for item in order.items.all()]
+    if order.shipping:
+        items.append({'price_data': {'currency': order.currency, 'unit_amount': order.shipping,
+                      'product_data': {'name': 'Demo shipping'}}, 'quantity': 1})
     try:
-        session = client.v1.checkout.sessions.create(params={'mode': 'payment', 'line_items': line_items,
+        session = client.v1.checkout.sessions.create(params={'mode': 'payment', 'line_items': items,
+            'payment_method_types': ['card'], 'shipping_address_collection': {'allowed_countries': ['US']},
+            'expires_at': int(order.expires_at.timestamp()),
             'success_url': settings.PUBLIC_ORIGIN + '/checkout/complete/?session_id={CHECKOUT_SESSION_ID}',
             'cancel_url': settings.PUBLIC_ORIGIN + '/checkout/cancel/',
-            'client_reference_id': nonce}, options={'idempotency_key': 'fieldform-test-' + nonce})
+            'client_reference_id': str(order.pk)}, options={'idempotency_key': 'fieldform-test-' + str(order.pk)})
     except stripe.StripeError:
-        return render(request, 'shop/checkout.html', {'page': 'checkout', 'checkout_error': 'Sandbox checkout is unavailable. Your bag is saved; please try again.'}, status=502)
+        return render(request, 'shop/checkout.html', {'page': 'checkout', 'checkout_error': 'Sandbox checkout is unavailable. Your reservation is saved; retry this checkout.'}, status=502)
     if session.livemode or not session.url or not session.url.startswith('https://checkout.stripe.com/'):
+        logger.error('Unsafe Stripe checkout response blocked for order %s', order.pk)
         return HttpResponse('Unsafe checkout response blocked.', status=502)
-    request.session['stripe_checkout_id'] = session.id
+    with transaction.atomic():
+        locked = Order.objects.select_for_update().get(pk=order.pk)
+        locked.stripe_session_id = session.id
+        locked.save(update_fields=['stripe_session_id'])
     return redirect(session.url)
 
 
 def checkout_complete(request):
-    verified = False
-    nonce = request.session.get('checkout_nonce')
-    if settings.CHECKOUT_MODE == 'simulated':
+    order_id = request.session.get('checkout_order')
+    order = Order.objects.filter(pk=order_id).first() if order_id else None
+    if not order:
+        return redirect('checkout')
+    if order.mode == 'simulated':
         try:
             data = signing.loads(request.GET.get('demo', ''), salt='demo-checkout', max_age=1800)
-            verified = bool(nonce) and secrets.compare_digest(data['nonce'], nonce)
-        except (signing.BadSignature, KeyError, TypeError):
-            pass
-    elif nonce and request.GET.get('session_id') == request.session.get('stripe_checkout_id'):
-        import stripe
-        try:
-            session = stripe.StripeClient(settings.STRIPE_SECRET_KEY).v1.checkout.sessions.retrieve(request.GET['session_id'])
-            verified = (not session.livemode and session.payment_status == 'paid' and
-                        session.client_reference_id == nonce and session.amount_total ==
-                        cart_summary(request.session.get('checkout_snapshot', {}))['total'])
-        except stripe.StripeError:
-            pass
-    if not verified:
-        return redirect('checkout')
-    receipt = cart_summary(request.session.get('checkout_snapshot', {}))
-    # Preserve a bag modified in another tab while checkout was open.
+            if data != {'order': str(order.pk), 'session': request.session.session_key}:
+                return redirect('checkout')
+            order = mark_paid(order.pk)
+        except (signing.BadSignature, ValueError):
+            return redirect('checkout')
+    else:
+        # Provider notifications, never browser return parameters, authorize payment.
+        if request.GET.get('session_id') != order.stripe_session_id:
+            return redirect('checkout')
+        if order.status not in (Order.Status.PAID, Order.Status.SHIPPED):
+            return render(request, 'shop/payment_pending.html', {'page': 'checkout'}, status=202)
     if request.session.get('cart', {}) == request.session.get('checkout_snapshot'):
         request.session['cart'] = {}
-    for key in ('checkout_nonce', 'checkout_snapshot', 'stripe_checkout_id'):
+    for key in ('checkout_order', 'checkout_snapshot'):
         request.session.pop(key, None)
-    return render(request, 'shop/complete.html', {'page': 'complete', 'receipt': receipt})
+    return render(request, 'shop/complete.html', {'page': 'complete', 'receipt': order_receipt(order)})
+
+
+@csrf_exempt
+@require_POST
+def stripe_webhook(request):
+    import stripe
+    if not settings.STRIPE_WEBHOOK_SECRET:
+        return HttpResponse('Webhook is not configured.', status=503)
+    if len(request.body) > 1024 * 1024:
+        return HttpResponseBadRequest('Payload too large.')
+    try:
+        event = stripe.Webhook.construct_event(request.body, request.headers.get('Stripe-Signature', ''), settings.STRIPE_WEBHOOK_SECRET)
+    except (ValueError, stripe.SignatureVerificationError):
+        return HttpResponseBadRequest('Invalid signature.')
+    if event.get('livemode') is not False:
+        return HttpResponseBadRequest('Live events are disabled.')
+    if event['type'] not in {'checkout.session.completed', 'checkout.session.async_payment_succeeded', 'checkout.session.expired', 'checkout.session.async_payment_failed'}:
+        return HttpResponse(status=200)
+    try:
+        handle_payment_event(event)
+    except Order.DoesNotExist:
+        # Retry: notification may race the response that stores the session ID.
+        return HttpResponse('Order is not linked yet.', status=503)
+    except (ValueError, KeyError):
+        logger.error('Payment event requires reconciliation: %s', event.get('id'))
+        return HttpResponse('Payment event requires reconciliation.', status=409)
+    return HttpResponse(status=200)
 
 
 def checkout_cancel(request):
+    order_id = request.session.get('checkout_order')
+    order = Order.objects.filter(pk=order_id, mode='simulated').first() if order_id else None
+    if order and release_order(order.pk):
+        request.session.pop('checkout_order', None)
     return render(request, 'shop/cancel.html', {'page': 'cancel'})
 
 

@@ -1,48 +1,48 @@
-# Fieldform — private Django store prototype
+# Fieldform — bonnet store management prototype
 
-Eight illustrative physical products; responsive catalog with category, search, and sorting; product pages; quantity updates/removal; shipping totals; and a sandbox checkout. No real transactions or fulfillment are enabled.
+Django storefront with PostgreSQL-backed products, size/style variants, inventory, test orders and order history, plus an MFA-protected staff admin at `/admin/`. Existing placeholder catalog styling is retained; sample healthcare bonnets are seeded as drafts for you to customize.
 
-## What runs where
+**Start here:** [Windows setup](docs/WINDOWS_SETUP.md) · [Store admin guide](docs/STORE_ADMIN.md) · [AWS deployment](deploy/AWS.md)
 
-**Django application:** `config/`, `shop/`, and `manage.py` contain the Python server. It validates all cart quantities and prices, uses CSRF-protected POST forms and signed secure sessions, serves collected static files with WhiteNoise, and supports a Stripe-hosted **test** checkout. It requires an authorized Python host and environment secrets before it can be deployed.
+## Development (macOS/Linux)
 
-**Private Sites preview:** `scripts/export_preview.py` renders the same Django templates into `dist/`. The preview uses browser storage for its bag and an explicitly simulated checkout. Sites' owner-only access and HTTPS protect this hosted preview. It does **not** run Django server code or call Stripe. This distinction is also disclosed on the preview's Our approach page and footer.
-
-The preview has no card inputs, contact forms, analytics, trackers, remote fonts, or runtime image dependencies. Products and policies are placeholders. The catalog uses cents throughout; shipping is $6 under $75 and free at $75; demo tax is zero.
-
-## Local setup
+Use Python 3.12 and PostgreSQL 16+. Create a virtual environment, install `requirements.txt`, set `DATABASE_URL` and a random `DJANGO_SECRET_KEY` (50+ characters), and set these local-only settings:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-On Windows PowerShell activate with `.\.venv\Scripts\Activate.ps1`.
-
-Export environment variables from a protected local environment (Django does not load `.env` automatically outside Docker Compose). At minimum set `DJANGO_SECRET_KEY` to 50+ random characters. For private HTTPS use `.env.example` as a guide. Never use placeholder values in deployment. Generate the owner hash with Django `make_password` while reading the password through `getpass`; do not put the password in command history.
-
-For local HTTP development only, set `DJANGO_DEBUG=true`, `DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1`, `PUBLIC_ORIGIN=http://localhost:8000`, and `PRIVATE_ACCESS_REQUIRED=false`. Those settings are not deployment defaults. Then:
-
-```bash
+export DJANGO_DEBUG=true
+export DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
+export PUBLIC_ORIGIN=http://localhost:8000
+export PRIVATE_ACCESS_REQUIRED=false
+export CHECKOUT_MODE=simulated
+python manage.py migrate
+python manage.py seed_store
+python manage.py seed_store --bonnets
+python manage.py setup_staff_roles
+python manage.py createsuperuser
+python manage.py enroll_admin YOUR_USERNAME
 python manage.py runserver
 ```
 
-Production uses Gunicorn and Caddy, never `runserver`. See [AWS deployment plan](deploy/AWS.md). No paid resource creation scripts are executed by this project.
+Django does not automatically read `.env`. Docker Compose does. Uploads use local `media/` in development and private S3 in production. Database sessions replace the original cookie-only cart sessions; existing prototype carts need to be recreated after upgrade.
 
-## Verification and preview build
+Use individual staff accounts, strong passwords and authenticator codes. No default accounts or credentials are included. The trusted-console enrollment command prints a private authenticator setup URI and one-time recovery codes; do not share or log them.
+
+## Verification
+
+In a fresh shell with DATABASE_URL and a temporary random secret, without HTTP-development overrides:
 
 ```bash
 python scripts/verify.py
-python scripts/export_preview.py
+python manage.py makemigrations --check --dry-run
+python -m pip check
 ```
 
-The verification command creates a throwaway build/test secret in process memory, collects static files, runs `check --deploy` with warnings treated as failures, and runs the meaningful browsing, cart, CSRF, privacy, HTTPS/header, and mocked Stripe tests. It makes no real Stripe requests.
+Verification collects static files, checks deployment settings, and runs browsing/cart, admin/MFA/permissions, uploads, order snapshots, webhook and inventory tests. PostgreSQL is required to exercise the concurrent last-unit test. SQLite is a lightweight fallback only and is rejected when `APP_ENV=production` deployment checks run.
 
-`scripts/export_preview.py` must run after `collectstatic`. It renders 16 HTML routes and copies the collected static assets. JSON products and templates are shared with Django; only the preview's cart/checkout controller is browser-local.
+Optional `python scripts/export_preview.py` renders the original immutable sample collection into 16 static HTML pages after static collection. It is an illustrative browser-local preview, not the live store, admin, database or order system.
 
-## Assets
+## Current boundaries
 
-Eight original SVG placeholder illustrations are generated by `scripts/create_assets.py`. The hero is a built-in image generation asset at `shop/static/shop/images/hero.webp`.
+Checkout supports simulated and Stripe **test** modes only. Orders and inventory are durable, payment notifications are signature-verified and idempotent, and historical financial records are read-only in admin. Original prices, demo shipping ($6 below $75) and zero tax remain illustrative. Sample bonnet variants have zero stock until you add your real information. No patient/medical records are collected; this is a retail catalog for bonnets.
 
-Hero prompt: “Premium editorial product photography: unbranded olive insulated bottle, natural canvas tote, cream ceramic mug on a wooden coaster, and dark green notebook on warm cream plaster. Soft side light, earth tones, realistic materials. No people, logos, typography, collage, or watermark.” Built-in ImageGen was used; the asset is included in this source repository.
+No AWS resources have been provisioned. Actual RDS/S3/IAM/HTTPS deployment, backups and restore, real Stripe sandbox delivery, and business requirements must be verified before production launch. Live payments, refunds, transactional email and real tax/shipping are not enabled by this release.

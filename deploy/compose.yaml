@@ -3,8 +3,12 @@ services:
     build: ..
     restart: unless-stopped
     env_file: ../.env
+    environment:
+      APP_ENV: production
     expose:
       - "8000"
+    volumes:
+      - ${RDS_CA_BUNDLE_PATH:?Set the absolute path to the AWS RDS CA bundle}:/run/rds/global-bundle.pem:ro
     read_only: true
     tmpfs:
       - /tmp

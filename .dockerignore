@@ -8,3 +8,5 @@ staticfiles
 qa
 node_modules
 *.sqlite3
+
+media

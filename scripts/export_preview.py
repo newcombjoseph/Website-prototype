@@ -14,14 +14,24 @@ os.environ.setdefault('DJANGO_SECRET_KEY', secrets.token_urlsafe(64))
 import django
 django.setup()
 from django.template.loader import render_to_string
-from shop.catalog import PRODUCTS, cart_summary
+import json
+from shop.catalog import money
+# Static previews remain an immutable sample catalog. The live database and
+# uploaded content are served only by Django.
+PRODUCTS = json.loads((Path(__file__).resolve().parents[1] / "shop/products.json").read_text())
+for product in PRODUCTS:
+    product["price_display"] = money(product["price"])
+    product["image_url"] = "/static/shop/images/" + product["image"]
+    product["variants"] = [dict(product, size="One size", style=product["color"])]
+def cart_summary(cart):
+    return {"count": 0, "lines": [], "total_display": "$0.00"}
 
 root = Path(__file__).resolve().parents[1]
 dist = root / 'dist'
 if dist.exists():
     shutil.rmtree(dist)
 dist.mkdir()
-context = {'preview': True, 'catalog_data': PRODUCTS, 'checkout_mode': 'simulated', 'bag': cart_summary({})}
+context = {'preview': True, 'catalog_data': PRODUCTS, 'checkout_mode': 'simulated', 'bag': cart_summary({}), 'categories': sorted({p['category'] for p in PRODUCTS})}
 pages = [('', 'home', 'home', {'products': PRODUCTS[:4]}),
          ('shop', 'catalog', 'catalog', {'products': PRODUCTS}),
          ('cart', 'cart', 'cart', {}), ('checkout', 'checkout', 'checkout', {}),

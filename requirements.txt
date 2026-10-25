@@ -2,3 +2,9 @@ Django==5.2.18
 whitenoise==6.12.0
 gunicorn==23.0.0
 stripe==14.4.1
+psycopg[binary]==3.2.13
+dj-database-url==3.0.1
+Pillow==12.1.1
+django-otp==1.7.0
+django-axes==8.3.1
+django-storages[s3]==1.14.6

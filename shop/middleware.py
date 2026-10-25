@@ -11,7 +11,7 @@ class PrivateAccessMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        if settings.PRIVATE_ACCESS_REQUIRED:
+        if settings.PRIVATE_ACCESS_REQUIRED and request.path != '/payments/stripe/webhook/':
             allowed = False
             try:
                 scheme, value = request.headers.get('Authorization', '').split(' ', 1)
@@ -35,8 +35,11 @@ class StoreHeadersMiddleware:
 
     def __call__(self, request):
         response = self.get_response(request)
+        # Django admin ships its own CSP-compatible external assets. S3 picture
+        # hosts are explicit, rather than permitting arbitrary remote images.
+        image_host = (f" https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com" if settings.AWS_STORAGE_BUCKET_NAME else '')
         response['Content-Security-Policy'] = ("default-src 'self'; script-src 'self'; style-src 'self'; "
-            "img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; "
+            f"img-src 'self' data:{image_host}; connect-src 'self'; object-src 'none'; base-uri 'none'; "
             "frame-ancestors 'none'; form-action 'self' https://checkout.stripe.com")
         response['X-Robots-Tag'] = 'noindex, nofollow, noarchive'
         response['Cache-Control'] = 'no-store'
