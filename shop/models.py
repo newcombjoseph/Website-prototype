@@ -16,6 +16,7 @@ class Product(models.Model):
     note = models.CharField(max_length=200, blank=True)
     badge = models.CharField(max_length=80, blank=True)
     published = models.BooleanField(default=False, help_text='Only published products with active variants appear in the shop.')
+    deleted_at = models.DateTimeField(null=True, blank=True, editable=False, help_text='Removed from the active catalog; retained for order and inventory history.')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -32,3 +32,13 @@ Two subsequent setup runs preserved an edited price and stock count, the order, 
 - Actual Chromium checks at 1440px desktop and 390px mobile widths passed: images loaded, no horizontal overflow, category/search filtering worked, all three size options were available, and adding the selected Medium cap produced the correct bag variant. No JavaScript errors occurred. Desktop/mobile screenshots were visually inspected.
 - The 16-page static export built successfully. A separate browser check added a cap, completed simulated checkout and confirmed the correct browser-only receipt and $34.00 sample total. Preview wording does not claim to save a database order.
 - Existing admin/MFA settings and database schema are unchanged. Users apply the sample-catalog update with `python scripts/local.py setup`; customized household examples remain owner-controlled and can be unpublished manually.
+
+
+## Admin product deletion
+
+- Added single-product Delete and the standard Delete selected products admin action, with confirmation text explaining that historical records are retained.
+- Added nullable `Product.deleted_at` in migration `0003_product_deleted_at`. Deletion removes the active catalog entry and unpublishes the product; variants, images, stock movements, order items and order history remain linked to their original records. Public catalog/cart lookups, new checkout reservations, active admin inventory and product choices exclude deleted products.
+- Catalog staff receive the existing Django `delete_product` permission through the additive staff-role setup. MFA, per-user permissions and CSRF still gate deletion. Admin deletion log entries retain the actor. Stale edits and repeated sample setup cannot restore deleted products.
+- `python scripts/local.py test`: **48 tests passed**, no skips. New tests cover single/bulk confirmation, paid-order/history retention, permission/MFA/CSRF checks, pending-order stock release, seed repeatability, and stale forms.
+- Actual Chromium verification used a temporary, subsequently deactivated local test account with a real authenticator code. The Delete button and confirmation completed successfully; public product access became 404 and the paid test order, inventory balance and history stayed intact.
+- The migration applied successfully to local PostgreSQL; `makemigrations --check --dry-run` reported no pending changes. Users apply it with `python scripts/local.py setup` after pulling the update.

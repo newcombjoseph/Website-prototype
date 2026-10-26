@@ -24,7 +24,7 @@ def reserve_order(cart, mode):
     subtotal = 0
     for variant in variants:
         quantity = cart[str(variant.pk)]
-        if type(quantity) is not int or not 1 <= quantity <= min(9, variant.stock) or not variant.active or not variant.product.published:
+        if type(quantity) is not int or not 1 <= quantity <= min(9, variant.stock) or not variant.active or not variant.product.published or variant.product.deleted_at is not None:
             raise StockError('Stock changed. Please review your bag before checking out.')
         subtotal += quantity * variant.price
     shipping = 0 if subtotal >= 7500 else 600

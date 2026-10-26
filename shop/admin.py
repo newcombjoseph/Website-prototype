@@ -7,6 +7,7 @@ from django.contrib.auth.admin import UserAdmin, GroupAdmin
 from django.db import transaction
 from django.db.models import F
 from django.utils.html import format_html
+from django.utils import timezone
 from django_otp.admin import OTPAdminSite
 from .images import prepare_image
 from .models import Product, Variant, ProductImage, Order, OrderItem, OrderEvent, StockMovement, PaymentEvent
@@ -35,6 +36,7 @@ class VariantForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields['product'].queryset = Product.objects.filter(deleted_at__isnull=True)
         if self.instance.pk:
             self.fields['dollar_price'].initial = Decimal(self.instance.price) / 100
             self.fields['stock_snapshot'].initial = signing.dumps({'id': self.instance.pk, 'stock': self.instance.stock}, salt='admin-stock')
@@ -90,8 +92,34 @@ class ProductAdmin(admin.ModelAdmin):
     fieldsets = [('Product information', {'fields': ('name', 'slug', 'category', 'description', 'published')}),
                  ('Details for customers', {'fields': ('materials', 'dimensions', 'care', 'badge', 'note')})]
 
-    def has_delete_permission(self, request, obj=None):
-        return False
+    delete_confirmation_template = 'admin/shop/product/delete_confirmation.html'
+    delete_selected_confirmation_template = 'admin/shop/product/delete_selected_confirmation.html'
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).filter(deleted_at__isnull=True)
+
+    def get_deleted_objects(self, objs, request):
+        # The admin deletes active catalog entries, not historical database rows.
+        # Related variants/orders/movements must not be presented as cascades.
+        objects = list(objs)
+        return [str(obj) for obj in objects], {str(self.opts.verbose_name_plural): len(objects)}, set(), []
+
+    def delete_model(self, request, obj):
+        self.delete_queryset(request, Product.objects.filter(pk=obj.pk))
+
+    def delete_queryset(self, request, queryset):
+        now = timezone.now()
+        queryset.filter(deleted_at__isnull=True).update(deleted_at=now, published=False, updated_at=now)
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            return super().save_model(request, obj, form, change)
+        # A form opened before deletion must never clear a later deletion marker.
+        current = Product.objects.select_for_update().get(pk=obj.pk)
+        if current.deleted_at is not None:
+            obj.published = False
+        obj.updated_at = timezone.now()
+        obj.save(update_fields=[*form.fields, 'updated_at'])
 
 
 class LowStockFilter(admin.SimpleListFilter):
@@ -139,6 +167,9 @@ class VariantAdmin(admin.ModelAdmin):
         if delta:
             StockMovement.objects.create(variant=obj, delta=delta, actor=request.user,
                                          reason=form.cleaned_data.get('adjustment_reason') or 'Initial stock')
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).filter(product__deleted_at__isnull=True)
 
     def has_delete_permission(self, request, obj=None):
         return False

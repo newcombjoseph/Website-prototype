@@ -17,7 +17,14 @@ If the site is still a private preview, its separate owner gate appears before t
 
 A product can have multiple uploaded photos. The first is its main picture; additional photos appear on its product page. Product pages display the available size/style options with each option's exact price.
 
-To retire products, unpublish them or deactivate variants. Products and variants are not deleted through the admin, preserving references from order history.
+## Delete a product
+
+Open **Products**, select the product, click **Delete** at the bottom of its edit page, and confirm. To remove several products, select their checkboxes on the Products list, choose **Delete selected products**, click **Go**, and confirm.
+
+Delete removes products from the storefront and active product/inventory admin lists. Historical database records, uploaded pictures, purchased-item snapshots, orders and stock movements are retained. Pending orders are not cancelled and payments are not refunded. Deleted sample products do not return when setup runs again. Variants cannot be deleted separately because inventory history references them.
+
+Deletion requires the **Can delete product** permission, included in the Catalog and inventory staff group after running setup. MFA and CSRF protection remain required. If you only want to temporarily hide a product while keeping it editable in the active admin, untick **Published** instead.
+
 
 ## Prices and inventory
 

@@ -35,7 +35,7 @@ def product_data(product):
 
 
 def product_cards():
-    products = Product.objects.filter(published=True).prefetch_related('images', 'variants__product__images').order_by('id')
+    products = Product.objects.filter(published=True, deleted_at__isnull=True).prefetch_related('images', 'variants__product__images').order_by('id')
     return [data for p in products if (data := product_data(p)) is not None]
 
 
@@ -49,7 +49,7 @@ class Catalog:
 class VariantLookup:
     def get(self, key, default=None):
         try:
-            variant = Variant.objects.select_related('product').prefetch_related('product__images').get(pk=int(key), active=True, product__published=True)
+            variant = Variant.objects.select_related('product').prefetch_related('product__images').get(pk=int(key), active=True, product__published=True, product__deleted_at__isnull=True)
         except (ValueError, TypeError, Variant.DoesNotExist):
             return default
         return variant_data(variant)

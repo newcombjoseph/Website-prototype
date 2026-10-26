@@ -1,0 +1,5 @@
+{% extends "admin/delete_confirmation.html" %}
+{% block content %}
+<p><strong>Delete from the catalog:</strong> this removes the product from the storefront and active product/inventory lists. Existing orders, purchased-item details, stock history and uploaded pictures are retained for historical records. This does not cancel pending orders or refund payments.</p>
+{{ block.super }}
+{% endblock %}

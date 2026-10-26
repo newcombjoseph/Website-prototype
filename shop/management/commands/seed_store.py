@@ -16,7 +16,7 @@ def archive_original_samples():
     under the owner's control. Historical order items retain their snapshots.
     """
     for original in json.loads((DATA_ROOT / 'legacy_samples.json').read_text()):
-        product = Product.objects.select_for_update().filter(slug=original['slug'], published=True).first()
+        product = Product.objects.select_for_update().filter(slug=original['slug'], published=True, deleted_at__isnull=True).first()
         if not product or product.images.exists() or any(getattr(product, field) != original[field] for field in PRODUCT_FIELDS):
             continue
         variants = list(product.variants.select_for_update().order_by('id'))
